@@ -1,6 +1,5 @@
 // 数据库配置
-const dotenv = require('dotenv');
-dotenv.config();
+require('dotenv').config();
 
 module.exports = {
   port: process.env.PORT || 3000,
@@ -9,13 +8,11 @@ module.exports = {
     expiresIn: process.env.JWT_EXPIRES_IN || '7d',
   },
   db: {
-    host: process.env.DB_HOST || 'localhost',
-    port: process.env.DB_PORT || 3306,
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || '',
+    host: process.env.DB_HOST,
+    port: parseInt(process.env.DB_PORT) || 5432,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
     database: process.env.DB_NAME || 'kk_esports',
-    waitForConnections: true,
-    connectionLimit: 10,
   },
   upload: {
     dir: process.env.UPLOAD_DIR || './uploads',
