@@ -29,6 +29,7 @@ const voiceRoomRoutes = require('./routes/voiceRoomRoutes');
 
 // 导入配置
 const config = require('./config');
+const { initDatabase } = require('./models/initDatabase');
 
 const app = express();
 const server = http.createServer(app);
@@ -106,15 +107,23 @@ app.use((err, req, res, next) => {
 
 const PORT = config.port || 3000;
 
-server.listen(PORT, () => {
-  console.log('╔══════════════════════════════════════╗');
-  console.log('║     KK电竞 后端服务已启动            ║');
-  console.log('╠══════════════════════════════════════╣');
-  console.log(`║  地址: http://localhost:${PORT}          ║`);
-  console.log(`║  环境: ${process.env.NODE_ENV || 'development'}                     ║`);
-  console.log(`║  API:  http://localhost:${PORT}/api/health ║`);
-  console.log('╚══════════════════════════════════════╝');
-});
+// 初始化数据库并启动服务
+async function startServer() {
+  // 初始化数据库
+  await initDatabase();
+  
+  server.listen(PORT, () => {
+    console.log('╔══════════════════════════════════════╗');
+    console.log('║     KK电竞 后端服务已启动            ║');
+    console.log('╠══════════════════════════════════════╣');
+    console.log(`║  地址: http://localhost:${PORT}          ║`);
+    console.log(`║  环境: ${process.env.NODE_ENV || 'development'}                     ║`);
+    console.log(`║  API:  http://localhost:${PORT}/api/health ║`);
+    console.log('╚══════════════════════════════════════╝');
+  });
+}
+
+startServer();
 
 // ==================== WebSocket 实时通信 ====================
 const { setupSocketIO } = require('./socket');
