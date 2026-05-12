@@ -112,8 +112,10 @@ const db = {
       const setKeys = Object.keys(data);
       const setValues = Object.values(data);
       const setClause = setKeys.map((k, i) => `${k} = $${i + 1}`).join(', ');
-      const values = [...setValues, ...whereParams];
-      const result = await pool.query(`UPDATE ${table} SET ${setClause} WHERE ${whereOrClause}`, values);
+      // 转换 WHERE 子句中的 ?
+      const { sql: whereClause, params: convertedWhereParams } = convertPlaceholders(whereOrClause, [...whereParams]);
+      const values = [...setValues, ...convertedWhereParams];
+      const result = await pool.query(`UPDATE ${table} SET ${setClause} WHERE ${whereClause}`, values);
       return { affectedRows: result.rowCount };
     }
     const { clause, params: whereParamsArr } = buildWhere(whereOrClause);
@@ -128,7 +130,9 @@ const db = {
   // 删除
   async delete(table, whereOrClause, whereParams = []) {
     if (typeof whereOrClause === 'string') {
-      const result = await pool.query(`DELETE FROM ${table} WHERE ${whereOrClause}`, whereParams);
+      // 转换 WHERE 子句中的 ?
+      const { sql: whereClause, params: convertedWhereParams } = convertPlaceholders(whereOrClause, [...whereParams]);
+      const result = await pool.query(`DELETE FROM ${table} WHERE ${whereClause}`, convertedWhereParams);
       return { affectedRows: result.rowCount };
     }
     const { clause, params } = buildWhere(whereOrClause);
