@@ -1,56 +1,34 @@
 /**
  * PostgreSQL 数据库连接池
- * 支持 Render PostgreSQL
  * 自动将 MySQL 的 ? 占位符转换为 PostgreSQL 的 $1, $2...
  */
 const { Pool } = require('pg');
 
-// 直接使用 DATABASE_URL（Render 自动设置）
 const connectionString = process.env.DATABASE_URL;
-
 if (!connectionString) {
   console.error('没有找到 DATABASE_URL 环境变量');
   process.exit(1);
 }
 
-// 创建连接池
 const pool = new Pool({
-  connectionString: connectionString,
+  connectionString,
   ssl: false,
 });
 
 console.log('数据库连接成功');
 
-// 将 MySQL 的 ? 占位符转换为 PostgreSQL 的 $1, $2...
+// 转换占位符：? -> $1, $2...
 function convertPlaceholders(sql, params) {
   let paramIndex = 1;
-  const newParams = [];
-  const newSql = sql.replace(/\?/g, () => {
-    newParams.push(params.shift());
-    return `$${paramIndex++}`;
-  });
+  const newParams = [...params];
+  const newSql = sql.replace(/\?/g, () => `$${paramIndex++}`);
   return { sql: newSql, params: newParams };
 }
 
-/**
- * 构造 WHERE 子句
- */
+// 构造 WHERE 子句
 function buildWhere(where) {
   if (!where || Object.keys(where).length === 0) {
     return { clause: '', params: [] };
-  }
-
-  if (where.OR) {
-    const orParts = where.OR.map(condition => {
-      const [key, value] = Object.entries(condition)[0];
-      if (Array.isArray(value)) return `${key} ${value[1]} $1`;
-      return `${key} = $1`;
-    });
-    const params = where.OR.map(condition => {
-      const [, value] = Object.entries(condition)[0];
-      return Array.isArray(value) ? value[0] : value;
-    });
-    return { clause: `WHERE (${orParts.join(' OR ')})`, params };
   }
 
   const parts = [];
@@ -70,59 +48,55 @@ function buildWhere(where) {
 }
 
 const db = {
-  /**
-   * 查询一行
-   */
-  async findOne(tableOrSql, paramsOrWhere = []) {
-    if (typeof tableOrSql === 'string' && tableOrSql.toUpperCase().includes('SELECT')) {
-      // 原始SQL，转换占位符
-      const params = Array.isArray(paramsOrWhere) ? paramsOrWhere : [];
-      const { sql, params: newParams } = convertPlaceholders(tableOrSql, [...params]);
-      const result = await pool.query(sql, newParams);
+  // 查询一行
+  async findOne(sqlOrTable, paramsOrWhere = []) {
+    if (typeof sqlOrTable === 'string') {
+      // 原始SQL
+      if (sqlOrTable.trim().toUpperCase().startsWith('SELECT')) {
+        const params = Array.isArray(paramsOrWhere) ? paramsOrWhere : [];
+        const { sql, params: newParams } = convertPlaceholders(sqlOrTable, params);
+        const result = await pool.query(sql, newParams);
+        return result.rows[0] || null;
+      }
+      // 表名
+      const { clause, params } = buildWhere(paramsOrWhere);
+      const result = await pool.query(`SELECT * FROM ${sqlOrTable} ${clause} LIMIT 1`, params);
       return result.rows[0] || null;
     }
-    const { clause, params } = buildWhere(paramsOrWhere);
-    const sql = `SELECT * FROM ${tableOrSql} ${clause} LIMIT 1`;
-    const result = await pool.query(sql, params);
-    return result.rows[0] || null;
+    return null;
   },
 
-  /**
-   * 查询多行
-   */
-  async findAll(tableOrSql, paramsOrWhere = [], orderBy = '') {
-    if (typeof tableOrSql === 'string' && (tableOrSql.toUpperCase().includes('SELECT') || tableOrSql.includes('JOIN'))) {
-      const params = Array.isArray(paramsOrWhere) ? paramsOrWhere : [];
-      const { sql, params: newParams } = convertPlaceholders(tableOrSql, [...params]);
-      const result = await pool.query(sql, newParams);
+  // 查询多行
+  async findAll(sqlOrTable, paramsOrWhere = [], orderBy = '') {
+    if (typeof sqlOrTable === 'string') {
+      if (sqlOrTable.trim().toUpperCase().startsWith('SELECT')) {
+        const params = Array.isArray(paramsOrWhere) ? paramsOrWhere : [];
+        const { sql, params: newParams } = convertPlaceholders(sqlOrTable, params);
+        const result = await pool.query(sql, newParams);
+        return result.rows;
+      }
+      const { clause, params } = buildWhere(paramsOrWhere);
+      const orderClause = orderBy ? `ORDER BY ${orderBy}` : '';
+      const result = await pool.query(`SELECT * FROM ${sqlOrTable} ${clause} ${orderClause}`, params);
       return result.rows;
     }
-    const { clause, params } = buildWhere(paramsOrWhere);
-    const orderClause = orderBy ? `ORDER BY ${orderBy}` : '';
-    const sql = `SELECT * FROM ${tableOrSql} ${clause} ${orderClause}`;
-    const result = await pool.query(sql, params);
-    return result.rows;
+    return [];
   },
 
-  /**
-   * 查询数量
-   */
-  async count(tableOrSql, paramsOrWhere = []) {
-    if (typeof tableOrSql === 'string' && tableOrSql.toUpperCase().includes('SELECT')) {
+  // 查询数量
+  async count(sqlOrTable, paramsOrWhere = []) {
+    if (typeof sqlOrTable === 'string' && sqlOrTable.trim().toUpperCase().startsWith('SELECT')) {
       const params = Array.isArray(paramsOrWhere) ? paramsOrWhere : [];
-      const { sql, params: newParams } = convertPlaceholders(tableOrSql, [...params]);
+      const { sql, params: newParams } = convertPlaceholders(sqlOrTable, params);
       const result = await pool.query(sql, newParams);
       return parseInt(result.rows[0]?.count) || 0;
     }
     const { clause, params } = buildWhere(paramsOrWhere);
-    const sql = `SELECT COUNT(*) as count FROM ${tableOrSql} ${clause}`;
-    const result = await pool.query(sql, params);
+    const result = await pool.query(`SELECT COUNT(*) as count FROM ${sqlOrTable} ${clause}`, params);
     return parseInt(result.rows[0]?.count) || 0;
   },
 
-  /**
-   * 插入数据
-   */
+  // 插入
   async insert(table, data) {
     const keys = Object.keys(data);
     const values = Object.values(data);
@@ -132,17 +106,14 @@ const db = {
     return { id: result.rows[0]?.id, affectedRows: result.rowCount };
   },
 
-  /**
-   * 更新数据
-   */
+  // 更新
   async update(table, data, whereOrClause, whereParams = []) {
     if (typeof whereOrClause === 'string') {
       const setKeys = Object.keys(data);
       const setValues = Object.values(data);
       const setClause = setKeys.map((k, i) => `${k} = $${i + 1}`).join(', ');
       const values = [...setValues, ...whereParams];
-      const sql = `UPDATE ${table} SET ${setClause} WHERE ${whereOrClause}`;
-      const result = await pool.query(sql, values);
+      const result = await pool.query(`UPDATE ${table} SET ${setClause} WHERE ${whereOrClause}`, values);
       return { affectedRows: result.rowCount };
     }
     const { clause, params: whereParamsArr } = buildWhere(whereOrClause);
@@ -150,29 +121,22 @@ const db = {
     const setValues = Object.values(data);
     const setClause = setKeys.map((k, i) => `${k} = $${i + 1}`).join(', ');
     const values = [...setValues, ...whereParamsArr];
-    const sql = `UPDATE ${table} SET ${setClause} ${clause}`;
-    const result = await pool.query(sql, values);
+    const result = await pool.query(`UPDATE ${table} SET ${setClause} ${clause}`, values);
     return { affectedRows: result.rowCount };
   },
 
-  /**
-   * 删除数据
-   */
-  async delete(table, whereOrClause, params = []) {
+  // 删除
+  async delete(table, whereOrClause, whereParams = []) {
     if (typeof whereOrClause === 'string') {
-      const sql = `DELETE FROM ${table} WHERE ${whereOrClause}`;
-      const result = await pool.query(sql, params);
+      const result = await pool.query(`DELETE FROM ${table} WHERE ${whereOrClause}`, whereParams);
       return { affectedRows: result.rowCount };
     }
-    const { clause, params: whereParams } = buildWhere(whereOrClause);
-    const sql = `DELETE FROM ${table} ${clause}`;
-    const result = await pool.query(sql, whereParams);
+    const { clause, params } = buildWhere(whereOrClause);
+    const result = await pool.query(`DELETE FROM ${table} ${clause}`, params);
     return { affectedRows: result.rowCount };
   },
 
-  /**
-   * 执行原始SQL（自动转换占位符）
-   */
+  // 执行原始SQL
   async query(sql, params = []) {
     if (sql.includes('?')) {
       const { sql: newSql, params: newParams } = convertPlaceholders(sql, [...params]);
