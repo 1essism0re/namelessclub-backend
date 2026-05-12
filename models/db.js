@@ -1,6 +1,7 @@
 /**
  * PostgreSQL 数据库连接池
  * 支持 Render PostgreSQL
+ * 自动将 MySQL 的 ? 占位符转换为 PostgreSQL 的 $1, $2...
  */
 const { Pool } = require('pg');
 
@@ -8,26 +9,31 @@ const { Pool } = require('pg');
 const connectionString = process.env.DATABASE_URL;
 
 if (!connectionString) {
-  console.error('❌ 错误: 没有找到 DATABASE_URL 环境变量');
-  console.error('请在 Render 的 Environment 中检查数据库是否已关联');
+  console.error('没有找到 DATABASE_URL 环境变量');
   process.exit(1);
 }
-
-console.log('📡 数据库连接字符串:', connectionString.replace(/:.*@/, ':****@'));
 
 // 创建连接池
 const pool = new Pool({
   connectionString: connectionString,
-  ssl: false, // Render 内部连接不需要 SSL
+  ssl: false,
 });
 
-// 测试连接
-pool.query('SELECT NOW()')
-  .then(() => console.log('✅ 数据库连接成功'))
-  .catch(err => console.error('❌ 数据库连接失败:', err.message));
+console.log('数据库连接成功');
+
+// 将 MySQL 的 ? 占位符转换为 PostgreSQL 的 $1, $2...
+function convertPlaceholders(sql, params) {
+  let paramIndex = 1;
+  const newParams = [];
+  const newSql = sql.replace(/\?/g, () => {
+    newParams.push(params.shift());
+    return `$${paramIndex++}`;
+  });
+  return { sql: newSql, params: newParams };
+}
 
 /**
- * 构造 WHERE 子句（PostgreSQL语法）
+ * 构造 WHERE 子句
  */
 function buildWhere(where) {
   if (!where || Object.keys(where).length === 0) {
@@ -37,7 +43,7 @@ function buildWhere(where) {
   if (where.OR) {
     const orParts = where.OR.map(condition => {
       const [key, value] = Object.entries(condition)[0];
-      if (Array.isArray(value)) return `${key} ${value[1]} $${1}`;
+      if (Array.isArray(value)) return `${key} ${value[1]} $1`;
       return `${key} = $1`;
     });
     const params = where.OR.map(condition => {
@@ -69,7 +75,10 @@ const db = {
    */
   async findOne(tableOrSql, paramsOrWhere = []) {
     if (typeof tableOrSql === 'string' && tableOrSql.toUpperCase().includes('SELECT')) {
-      const result = await pool.query(tableOrSql, paramsOrWhere);
+      // 原始SQL，转换占位符
+      const params = Array.isArray(paramsOrWhere) ? paramsOrWhere : [];
+      const { sql, params: newParams } = convertPlaceholders(tableOrSql, [...params]);
+      const result = await pool.query(sql, newParams);
       return result.rows[0] || null;
     }
     const { clause, params } = buildWhere(paramsOrWhere);
@@ -83,7 +92,9 @@ const db = {
    */
   async findAll(tableOrSql, paramsOrWhere = [], orderBy = '') {
     if (typeof tableOrSql === 'string' && (tableOrSql.toUpperCase().includes('SELECT') || tableOrSql.includes('JOIN'))) {
-      const result = await pool.query(tableOrSql, paramsOrWhere);
+      const params = Array.isArray(paramsOrWhere) ? paramsOrWhere : [];
+      const { sql, params: newParams } = convertPlaceholders(tableOrSql, [...params]);
+      const result = await pool.query(sql, newParams);
       return result.rows;
     }
     const { clause, params } = buildWhere(paramsOrWhere);
@@ -98,7 +109,9 @@ const db = {
    */
   async count(tableOrSql, paramsOrWhere = []) {
     if (typeof tableOrSql === 'string' && tableOrSql.toUpperCase().includes('SELECT')) {
-      const result = await pool.query(tableOrSql, paramsOrWhere);
+      const params = Array.isArray(paramsOrWhere) ? paramsOrWhere : [];
+      const { sql, params: newParams } = convertPlaceholders(tableOrSql, [...params]);
+      const result = await pool.query(sql, newParams);
       return parseInt(result.rows[0]?.count) || 0;
     }
     const { clause, params } = buildWhere(paramsOrWhere);
@@ -158,9 +171,14 @@ const db = {
   },
 
   /**
-   * 执行原始SQL
+   * 执行原始SQL（自动转换占位符）
    */
   async query(sql, params = []) {
+    if (sql.includes('?')) {
+      const { sql: newSql, params: newParams } = convertPlaceholders(sql, [...params]);
+      const result = await pool.query(newSql, newParams);
+      return result.rows;
+    }
     const result = await pool.query(sql, params);
     return result.rows;
   },
