@@ -1,9 +1,7 @@
-// 订单控制器
-const db = require('../models/db');
+﻿// 璁㈠崟鎺у埗鍣?const db = require('../models/db');
 
-// 生成订单号
-function generateOrderNo() {
-  const now = new Date();
+// 鐢熸垚璁㈠崟鍙?function generateOrderNo() {
+  const now = new Date().toISOString();
   const dateStr = now.getFullYear().toString() +
     String(now.getMonth() + 1).padStart(2, '0') +
     String(now.getDate()).padStart(2, '0');
@@ -11,42 +9,40 @@ function generateOrderNo() {
   return `KK${dateStr}${rand}`;
 }
 
-// 创建订单（下单）
+// 鍒涘缓璁㈠崟锛堜笅鍗曪級
 async function createOrder(req, res) {
   try {
     const { player_id, game_id, duration = 1, remark = '' } = req.body;
     const userId = req.user.id;
 
-    // 参数校验
+    // 鍙傛暟鏍￠獙
     if (!player_id || !game_id) {
-      return res.status(400).json({ code: 400, message: '陪玩师和游戏不能为空' });
+      return res.status(400).json({ code: 400, message: '闄帺甯堝拰娓告垙涓嶈兘涓虹┖' });
     }
 
-    // 查询陪玩师信息
-    const player = await db.findOne('SELECT * FROM players WHERE id = ? AND status = 1', [player_id]);
+    // 鏌ヨ闄帺甯堜俊鎭?    const player = await db.findOne('SELECT * FROM players WHERE id = ? AND status = 1', [player_id]);
     if (!player) {
-      return res.status(400).json({ code: 400, message: '陪玩师不存在或已下架' });
+      return res.status(400).json({ code: 400, message: '闄帺甯堜笉瀛樺湪鎴栧凡涓嬫灦' });
     }
 
-    // 查询游戏信息
+    // 鏌ヨ娓告垙淇℃伅
     const game = await db.findOne('SELECT * FROM games WHERE id = ?', [game_id]);
 
-    // 计算价格
+    // 璁＄畻浠锋牸
     const totalPrice = player.price * duration;
 
-    // 检查用户余额
-    const user = await db.findOne('SELECT balance FROM users WHERE id = ?', [userId]);
+    // 妫€鏌ョ敤鎴蜂綑棰?    const user = await db.findOne('SELECT balance FROM users WHERE id = ?', [userId]);
     if (!user || user.balance < totalPrice) {
       return res.status(400).json({ 
         code: 400, 
-        message: `余额不足，需要¥${totalPrice}，当前余额¥${user?.balance || 0}` 
+        message: `浣欓涓嶈冻锛岄渶瑕伮?{totalPrice}锛屽綋鍓嶄綑棰澛?{user?.balance || 0}` 
       });
     }
 
-    // 扣减用户余额
+    // 鎵ｅ噺鐢ㄦ埛浣欓
     await db.query('UPDATE users SET balance = balance - ? WHERE id = ?', [totalPrice, userId]);
 
-    // 创建订单
+    // 鍒涘缓璁㈠崟
     const orderNo = generateOrderNo();
     const result = await db.insert('orders', {
       order_no: orderNo,
@@ -60,24 +56,23 @@ async function createOrder(req, res) {
       remark,
     });
 
-    // 创建消费交易记录
+    // 鍒涘缓娑堣垂浜ゆ槗璁板綍
     await db.insert('transactions', {
       trade_no: `TX${Date.now()}${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`,
       user_id: userId,
       type: 'expense',
       amount: totalPrice,
       status: 'completed',
-      description: `订单${orderNo}消费`,
+      description: `璁㈠崟${orderNo}娑堣垂`,
       order_id: result.id,
-      completed_at: new Date(),
+      completed_at: new Date().toISOString(),
     });
 
-    // 查询扣款后余额
-    const updatedUser = await db.findOne('SELECT balance FROM users WHERE id = ?', [userId]);
+    // 鏌ヨ鎵ｆ鍚庝綑棰?    const updatedUser = await db.findOne('SELECT balance FROM users WHERE id = ?', [userId]);
 
     res.json({
       code: 200,
-      message: '下单成功',
+      message: '涓嬪崟鎴愬姛',
       data: {
         order_id: result.id,
         order_no: orderNo,
@@ -87,12 +82,12 @@ async function createOrder(req, res) {
       },
     });
   } catch (err) {
-    console.error('创建订单失败:', err);
-    res.status(500).json({ code: 500, message: '服务器错误' });
+    console.error('鍒涘缓璁㈠崟澶辫触:', err);
+    res.status(500).json({ code: 500, message: '鏈嶅姟鍣ㄩ敊璇? });
   }
 }
 
-// 获取我的订单列表
+// 鑾峰彇鎴戠殑璁㈠崟鍒楄〃
 async function getMyOrders(req, res) {
   try {
     const { status, page = 1, limit = 10 } = req.query;
@@ -137,12 +132,12 @@ async function getMyOrders(req, res) {
       },
     });
   } catch (err) {
-    console.error('获取订单列表失败:', err);
-    res.status(500).json({ code: 500, message: '服务器错误' });
+    console.error('鑾峰彇璁㈠崟鍒楄〃澶辫触:', err);
+    res.status(500).json({ code: 500, message: '鏈嶅姟鍣ㄩ敊璇? });
   }
 }
 
-// 获取订单详情
+// 鑾峰彇璁㈠崟璇︽儏
 async function getOrderDetail(req, res) {
   try {
     const { id } = req.params;
@@ -159,20 +154,19 @@ async function getOrderDetail(req, res) {
     );
 
     if (!order) {
-      return res.status(404).json({ code: 404, message: '订单不存在' });
+      return res.status(404).json({ code: 404, message: '璁㈠崟涓嶅瓨鍦? });
     }
 
     res.json({ code: 200, data: order });
   } catch (err) {
-    console.error('获取订单详情失败:', err);
-    res.status(500).json({ code: 500, message: '服务器错误' });
+    console.error('鑾峰彇璁㈠崟璇︽儏澶辫触:', err);
+    res.status(500).json({ code: 500, message: '鏈嶅姟鍣ㄩ敊璇? });
   }
 }
 
-// ========== 后台管理接口 ==========
+// ========== 鍚庡彴绠＄悊鎺ュ彛 ==========
 
-// 获取所有订单
-async function adminGetOrders(req, res) {
+// 鑾峰彇鎵€鏈夎鍗?async function adminGetOrders(req, res) {
   try {
     const { status, keyword, page = 1, limit = 10 } = req.query;
     const offset = (page - 1) * limit;
@@ -213,38 +207,37 @@ async function adminGetOrders(req, res) {
       data: { list: orders, total, page: parseInt(page), totalPages: Math.ceil(total / limitNum) },
     });
   } catch (err) {
-    console.error('获取订单列表失败:', err);
-    res.status(500).json({ code: 500, message: '服务器错误' });
+    console.error('鑾峰彇璁㈠崟鍒楄〃澶辫触:', err);
+    res.status(500).json({ code: 500, message: '鏈嶅姟鍣ㄩ敊璇? });
   }
 }
 
-// 更新订单状态
-async function updateOrderStatus(req, res) {
+// 鏇存柊璁㈠崟鐘舵€?async function updateOrderStatus(req, res) {
   try {
     const { id } = req.params;
     const { status, cancel_reason } = req.body;
 
     const validStatuses = ['pending', 'accepted', 'ongoing', 'completed', 'cancelled'];
     if (!validStatuses.includes(status)) {
-      return res.status(400).json({ code: 400, message: '无效的订单状态' });
+      return res.status(400).json({ code: 400, message: '鏃犳晥鐨勮鍗曠姸鎬? });
     }
 
     const data = { status };
-    if (status === 'accepted') data.accept_at = new Date();
-    if (status === 'ongoing') data.start_at = new Date();
-    if (status === 'completed') data.end_at = new Date();
+    if (status === 'accepted') data.accept_at = new Date().toISOString();
+    if (status === 'ongoing') data.start_at = new Date().toISOString();
+    if (status === 'completed') data.end_at = new Date().toISOString();
     if (status === 'cancelled' && cancel_reason) data.cancel_reason = cancel_reason;
 
     const result = await db.update('orders', data, 'id = ?', [id]);
 
     if (result.affectedRows === 0) {
-      return res.status(404).json({ code: 404, message: '订单不存在' });
+      return res.status(404).json({ code: 404, message: '璁㈠崟涓嶅瓨鍦? });
     }
 
-    res.json({ code: 200, message: '订单状态已更新' });
+    res.json({ code: 200, message: '璁㈠崟鐘舵€佸凡鏇存柊' });
   } catch (err) {
-    console.error('更新订单状态失败:', err);
-    res.status(500).json({ code: 500, message: '服务器错误' });
+    console.error('鏇存柊璁㈠崟鐘舵€佸け璐?', err);
+    res.status(500).json({ code: 500, message: '鏈嶅姟鍣ㄩ敊璇? });
   }
 }
 
@@ -252,3 +245,4 @@ module.exports = {
   createOrder, getMyOrders, getOrderDetail,
   adminGetOrders, updateOrderStatus,
 };
+

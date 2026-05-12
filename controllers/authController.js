@@ -34,7 +34,7 @@ async function register(req, res) {
       password: hashedPassword,
       nickname: nickname || `KK用户${phone.slice(-4)}`,
       avatar: '',
-      last_login_at: new Date(),
+      last_login_at: new Date().toISOString(),
     });
 
     // 生成Token
@@ -90,7 +90,7 @@ async function login(req, res) {
     }
 
     // 更新最后登录时间
-    await db.update('users', { last_login_at: new Date() }, 'id = ?', [user.id]);
+    await db.update('users', { last_login_at: new Date().toISOString() }, 'id = ?', [user.id]);
 
     // 生成Token
     const token = generateToken({

@@ -1,49 +1,44 @@
-/**
- * 支付控制器
+﻿/**
+ * 鏀粯鎺у埗鍣? * 
+ * 褰撳墠涓烘ā鎷熸敮浠樼郴缁燂紝娴佺▼锛? * 1. 鐢ㄦ埛鍙戣捣鍏呭€?鈫?鍒涘缓浜ゆ槗璁板綍锛坰tatus=pending锛? * 2. 妯℃嫙鏀粯纭 鈫?鏇存柊浜ゆ槗璁板綍锛坰tatus=completed锛? 澧炲姞鐢ㄦ埛浣欓
+ * 3. 涓嬪崟娑堣垂 鈫?鍒涘缓浜ゆ槗璁板綍锛坱ype=expense锛? 鍑忓皯鐢ㄦ埛浣欓
  * 
- * 当前为模拟支付系统，流程：
- * 1. 用户发起充值 → 创建交易记录（status=pending）
- * 2. 模拟支付确认 → 更新交易记录（status=completed）+ 增加用户余额
- * 3. 下单消费 → 创建交易记录（type=expense）+ 减少用户余额
- * 
- * 后续接入真实支付时，只需：
- * - 将 simulatePay 替换为微信/支付宝的下单API调用
- * - 添加支付回调接口处理异步通知
+ * 鍚庣画鎺ュ叆鐪熷疄鏀粯鏃讹紝鍙渶锛? * - 灏?simulatePay 鏇挎崲涓哄井淇?鏀粯瀹濈殑涓嬪崟API璋冪敤
+ * - 娣诲姞鏀粯鍥炶皟鎺ュ彛澶勭悊寮傛閫氱煡
  */
 const db = require('../models/db');
 
-// ==================== 充值 ====================
+// ==================== 鍏呭€?====================
 
-// 发起充值（创建充值订单）
+// 鍙戣捣鍏呭€硷紙鍒涘缓鍏呭€艰鍗曪級
 const createRecharge = async (req, res) => {
   try {
     const { amount } = req.body;
     const userId = req.user.id;
 
     if (!amount || amount <= 0) {
-      return res.status(400).json({ code: 400, message: '充值金额必须大于0' });
+      return res.status(400).json({ code: 400, message: '鍏呭€奸噾棰濆繀椤诲ぇ浜?' });
     }
 
     if (amount > 10000) {
-      return res.status(400).json({ code: 400, message: '单次充值不能超过10000元' });
+      return res.status(400).json({ code: 400, message: '鍗曟鍏呭€间笉鑳借秴杩?0000鍏? });
     }
 
-    // 生成交易号
-    const tradeNo = `TX${Date.now()}${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`;
+    // 鐢熸垚浜ゆ槗鍙?    const tradeNo = `TX${Date.now()}${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`;
 
-    // 创建交易记录
+    // 鍒涘缓浜ゆ槗璁板綍
     const result = await db.insert('transactions', {
       trade_no: tradeNo,
       user_id: userId,
       type: 'recharge',
       amount: Number(amount),
       status: 'pending',
-      description: `充值¥${amount}`,
+      description: `鍏呭€悸?{amount}`,
     });
 
     res.json({
       code: 200,
-      message: '充值订单已创建',
+      message: '鍏呭€艰鍗曞凡鍒涘缓',
       data: {
         id: result.id,
         trade_no: tradeNo,
@@ -52,54 +47,53 @@ const createRecharge = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('创建充值订单失败:', error);
-    res.status(500).json({ code: 500, message: '服务器错误' });
+    console.error('鍒涘缓鍏呭€艰鍗曞け璐?', error);
+    res.status(500).json({ code: 500, message: '鏈嶅姟鍣ㄩ敊璇? });
   }
 };
 
-// 模拟支付确认（实际是充值到账）
+// 妯℃嫙鏀粯纭锛堝疄闄呮槸鍏呭€煎埌璐︼級
 const simulatePay = async (req, res) => {
   try {
     const { trade_no } = req.body;
     const userId = req.user.id;
 
     if (!trade_no) {
-      return res.status(400).json({ code: 400, message: '缺少交易号' });
+      return res.status(400).json({ code: 400, message: '缂哄皯浜ゆ槗鍙? });
     }
 
-    // 查找交易记录
+    // 鏌ユ壘浜ゆ槗璁板綍
     const transaction = await db.findOne(
       'SELECT * FROM transactions WHERE trade_no = ? AND user_id = ? AND type = ?',
       [trade_no, userId, 'recharge']
     );
 
     if (!transaction) {
-      return res.status(404).json({ code: 404, message: '交易记录不存在' });
+      return res.status(404).json({ code: 404, message: '浜ゆ槗璁板綍涓嶅瓨鍦? });
     }
 
     if (transaction.status === 'completed') {
-      return res.status(400).json({ code: 400, message: '该交易已完成' });
+      return res.status(400).json({ code: 400, message: '璇ヤ氦鏄撳凡瀹屾垚' });
     }
 
-    // 更新交易状态
-    await db.update('transactions',
-      { status: 'completed', completed_at: new Date() },
+    // 鏇存柊浜ゆ槗鐘舵€?    await db.update('transactions',
+      { status: 'completed', completed_at: new Date().toISOString() },
       'id = ?',
       [transaction.id]
     );
 
-    // 增加用户余额
+    // 澧炲姞鐢ㄦ埛浣欓
     await db.query(
       'UPDATE users SET balance = balance + ? WHERE id = ?',
       [transaction.amount, userId]
     );
 
-    // 查询更新后的余额
+    // 鏌ヨ鏇存柊鍚庣殑浣欓
     const user = await db.findOne('SELECT balance FROM users WHERE id = ?', [userId]);
 
     res.json({
       code: 200,
-      message: '充值成功！',
+      message: '鍏呭€兼垚鍔燂紒',
       data: {
         trade_no,
         amount: transaction.amount,
@@ -107,28 +101,27 @@ const simulatePay = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('模拟支付失败:', error);
-    res.status(500).json({ code: 500, message: '服务器错误' });
+    console.error('妯℃嫙鏀粯澶辫触:', error);
+    res.status(500).json({ code: 500, message: '鏈嶅姟鍣ㄩ敊璇? });
   }
 };
 
-// ==================== 余额查询 ====================
+// ==================== 浣欓鏌ヨ ====================
 
-// 获取钱包信息（余额 + 交易记录）
-const getWalletInfo = async (req, res) => {
+// 鑾峰彇閽卞寘淇℃伅锛堜綑棰?+ 浜ゆ槗璁板綍锛?const getWalletInfo = async (req, res) => {
   try {
     const userId = req.user.id;
 
-    // 查询余额
+    // 鏌ヨ浣欓
     const user = await db.findOne('SELECT balance FROM users WHERE id = ?', [userId]);
 
-    // 查询交易记录
+    // 鏌ヨ浜ゆ槗璁板綍
     const transactions = await db.findAll(
       `SELECT * FROM transactions WHERE user_id = ? ORDER BY created_at DESC LIMIT 50`,
       [userId]
     );
 
-    // 统计
+    // 缁熻
     const stats = await db.query(`
       SELECT 
         COALESCE(SUM(CASE WHEN type='recharge' AND status='completed' THEN amount ELSE 0 END), 0) as total_recharge,
@@ -146,15 +139,14 @@ const getWalletInfo = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('获取钱包信息失败:', error);
-    res.status(500).json({ code: 500, message: '服务器错误' });
+    console.error('鑾峰彇閽卞寘淇℃伅澶辫触:', error);
+    res.status(500).json({ code: 500, message: '鏈嶅姟鍣ㄩ敊璇? });
   }
 };
 
-// ==================== 管理后台 ====================
+// ==================== 绠＄悊鍚庡彴 ====================
 
-// 获取所有交易记录
-const adminGetTransactions = async (req, res) => {
+// 鑾峰彇鎵€鏈変氦鏄撹褰?const adminGetTransactions = async (req, res) => {
   try {
     const { type, status, page = 1, pageSize = 20 } = req.query;
     const limitNum = Number(pageSize);
@@ -177,7 +169,7 @@ const adminGetTransactions = async (req, res) => {
       params.push(status);
     }
 
-    // 总数
+    // 鎬绘暟
     const countSql = sql.replace('SELECT t.*, u.nickname, u.phone', 'SELECT COUNT(*) as count');
     const countResult = await db.query(countSql, params);
 
@@ -194,8 +186,8 @@ const adminGetTransactions = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('获取交易记录失败:', error);
-    res.status(500).json({ code: 500, message: '服务器错误' });
+    console.error('鑾峰彇浜ゆ槗璁板綍澶辫触:', error);
+    res.status(500).json({ code: 500, message: '鏈嶅姟鍣ㄩ敊璇? });
   }
 };
 
@@ -205,3 +197,4 @@ module.exports = {
   getWalletInfo,
   adminGetTransactions,
 };
+
