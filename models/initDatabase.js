@@ -5,7 +5,6 @@
 const db = require('./db');
 
 const initSQL = `
--- 用户表
 CREATE TABLE IF NOT EXISTS users (
   id SERIAL PRIMARY KEY,
   phone VARCHAR(20) UNIQUE NOT NULL,
@@ -21,7 +20,6 @@ CREATE TABLE IF NOT EXISTS users (
   last_login_at TIMESTAMP
 );
 
--- 游戏表
 CREATE TABLE IF NOT EXISTS games (
   id SERIAL PRIMARY KEY,
   name VARCHAR(100) NOT NULL,
@@ -32,7 +30,6 @@ CREATE TABLE IF NOT EXISTS games (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- 陪玩师表
 CREATE TABLE IF NOT EXISTS players (
   id SERIAL PRIMARY KEY,
   user_id INT NOT NULL,
@@ -48,7 +45,6 @@ CREATE TABLE IF NOT EXISTS players (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- 陪玩师-游戏关联表
 CREATE TABLE IF NOT EXISTS player_games (
   id SERIAL PRIMARY KEY,
   player_id INT NOT NULL,
@@ -57,7 +53,6 @@ CREATE TABLE IF NOT EXISTS player_games (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- 订单表
 CREATE TABLE IF NOT EXISTS orders (
   id SERIAL PRIMARY KEY,
   order_no VARCHAR(50) UNIQUE NOT NULL,
@@ -75,7 +70,6 @@ CREATE TABLE IF NOT EXISTS orders (
   completed_at TIMESTAMP
 );
 
--- 评价表
 CREATE TABLE IF NOT EXISTS reviews (
   id SERIAL PRIMARY KEY,
   order_id INT,
@@ -86,7 +80,6 @@ CREATE TABLE IF NOT EXISTS reviews (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- 消息表
 CREATE TABLE IF NOT EXISTS messages (
   id SERIAL PRIMARY KEY,
   from_user_id INT NOT NULL,
@@ -97,7 +90,6 @@ CREATE TABLE IF NOT EXISTS messages (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- 语音房间表
 CREATE TABLE IF NOT EXISTS voice_rooms (
   id SERIAL PRIMARY KEY,
   room_id VARCHAR(64) UNIQUE NOT NULL,
@@ -110,7 +102,6 @@ CREATE TABLE IF NOT EXISTS voice_rooms (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- 语音房间成员表
 CREATE TABLE IF NOT EXISTS voice_room_members (
   id SERIAL PRIMARY KEY,
   room_id INT NOT NULL,
@@ -121,7 +112,6 @@ CREATE TABLE IF NOT EXISTS voice_room_members (
   UNIQUE(room_id, user_id)
 );
 
--- 轮播图表
 CREATE TABLE IF NOT EXISTS banners (
   id SERIAL PRIMARY KEY,
   title VARCHAR(100) NOT NULL,
@@ -132,7 +122,6 @@ CREATE TABLE IF NOT EXISTS banners (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- 公告表
 CREATE TABLE IF NOT EXISTS announcements (
   id SERIAL PRIMARY KEY,
   title VARCHAR(200) NOT NULL,
@@ -143,7 +132,6 @@ CREATE TABLE IF NOT EXISTS announcements (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- 交易记录表
 CREATE TABLE IF NOT EXISTS transactions (
   id SERIAL PRIMARY KEY,
   trade_no VARCHAR(50) UNIQUE NOT NULL,
@@ -157,7 +145,6 @@ CREATE TABLE IF NOT EXISTS transactions (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- 创建索引
 CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone);
 CREATE INDEX IF NOT EXISTS idx_players_user_id ON players(user_id);
 CREATE INDEX IF NOT EXISTS idx_players_status ON players(status);
@@ -170,56 +157,100 @@ CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON transactions(user_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_trade_no ON transactions(trade_no);
 `;
 
-const seedData = `
--- 插入管理员账号 (密码: admin123)
-INSERT INTO users (phone, password, nickname, role, status) 
-VALUES ('13800000000', '\$2a\$10\$PAMdGJ2./FWTKnXdV3GRbOaFamWoQrwS/Z0rD7cpnBk/QKwa5ZL02', 'KK管理员', 'admin', 1)
-ON CONFLICT (phone) DO NOTHING;
-
--- 插入测试用户 (密码: test123456)
-INSERT INTO users (phone, password, nickname, role) 
-VALUES ('13900001111', '\$2a\$10\$8KzaXqZ9qFZWZqZ9qZqZqeZWZqZ9qZ9qZ9qZ9qZ9qZ9qZ9qZ9qZ9qZ', 'KK用户001', 'user')
-ON CONFLICT (phone) DO NOTHING;
-
--- 插入游戏
-INSERT INTO games (name, icon, sort_order) VALUES
-  ('英雄联盟', '🎮', 1),
-  ('王者荣耀', '👑', 2),
-  ('和平精英', '🔫', 3),
-  ('原神', '⚔️', 4),
-  ('CSGO', '🎯', 5),
-  ('DOTA2', '🛡️', 6),
-  ('VALORANT', '💎', 7)
-ON CONFLICT DO NOTHING;
-
--- 插入轮播图
-INSERT INTO banners (title, image, link, sort_order, is_active) VALUES
-  ('KK电竞夏季赛', '/uploads/banner1.jpg', '/app', 1, 1),
-  ('新人福利', '/uploads/banner2.jpg', '/app', 2, 1)
-ON CONFLICT DO NOTHING;
-
--- 插入公告
-INSERT INTO announcements (title, content, type, is_active) VALUES
-  ('欢迎来到KK电竞', '在这里找到你的游戏伙伴，开启愉快的游戏之旅！', 'system', 1),
-  ('平台维护通知', '每周日凌晨2点-6点进行系统维护', 'system', 1)
-ON CONFLICT DO NOTHING;
-`;
-
 async function initDatabase() {
   try {
-    console.log('🔄 正在初始化数据库...');
+    console.log('正在初始化数据库...');
     
-    // 执行建表SQL
-    await db.query(initSQL);
-    console.log('✅ 数据表创建完成');
+    // 执行建表SQL（分割成单独的语句）
+    const statements = initSQL.split(';').filter(s => s.trim());
+    for (const statement of statements) {
+      if (statement.trim()) {
+        try {
+          await db.query(statement);
+        } catch (err) {
+          // 忽略已存在的错误
+        }
+      }
+    }
+    console.log('数据表创建完成');
     
-    // 插入初始数据
-    await db.query(seedData);
-    console.log('✅ 初始数据插入完成');
+    // 插入初始数据（使用 bcryptjs）
+    const bcrypt = require('bcryptjs');
+    const adminPassword = bcrypt.hashSync('admin123', 10);
+    const userPassword = bcrypt.hashSync('test123456', 10);
     
+    // 插入管理员
+    try {
+      await db.query(
+        `INSERT INTO users (phone, password, nickname, role, status) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (phone) DO NOTHING`,
+        ['13800000000', adminPassword, 'KK管理员', 'admin', 1]
+      );
+      console.log('管理员账号已创建');
+    } catch (err) {
+      // 忽略重复插入
+    }
+    
+    // 插入测试用户
+    try {
+      await db.query(
+        `INSERT INTO users (phone, password, nickname, role) VALUES ($1, $2, $3, $4) ON CONFLICT (phone) DO NOTHING`,
+        ['13900001111', userPassword, 'KK用户001', 'user']
+      );
+      console.log('测试用户已创建');
+    } catch (err) {
+      // 忽略重复插入
+    }
+    
+    // 插入游戏
+    const games = [
+      ['英雄联盟', '🎮', 1],
+      ['王者荣耀', '👑', 2],
+      ['和平精英', '🔫', 3],
+      ['原神', '⚔️', 4],
+      ['CSGO', '🎯', 5],
+      ['DOTA2', '🛡️', 6],
+      ['VALORANT', '💎', 7]
+    ];
+    for (const [name, icon, sort] of games) {
+      try {
+        await db.query(
+          `INSERT INTO games (name, icon, sort_order) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`,
+          [name, icon, sort]
+        );
+      } catch (err) {}
+    }
+    console.log('游戏数据已插入');
+    
+    // 插入轮播图
+    try {
+      await db.query(
+        `INSERT INTO banners (title, image, link, sort_order, is_active) VALUES ($1, $2, $3, $4, $5) ON CONFLICT DO NOTHING`,
+        ['KK电竞夏季赛', '/uploads/banner1.jpg', '/app', 1, 1]
+      );
+      await db.query(
+        `INSERT INTO banners (title, image, link, sort_order, is_active) VALUES ($1, $2, $3, $4, $5) ON CONFLICT DO NOTHING`,
+        ['新人福利', '/uploads/banner2.jpg', '/app', 2, 1]
+      );
+      console.log('轮播图已插入');
+    } catch (err) {}
+    
+    // 插入公告
+    try {
+      await db.query(
+        `INSERT INTO announcements (title, content, type, is_active) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING`,
+        ['欢迎来到KK电竞', '在这里找到你的游戏伙伴，开启愉快的游戏之旅！', 'system', 1]
+      );
+      await db.query(
+        `INSERT INTO announcements (title, content, type, is_active) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING`,
+        ['平台维护通知', '每周日凌晨2点-6点进行系统维护', 'system', 1]
+      );
+      console.log('公告已插入');
+    } catch (err) {}
+    
+    console.log('数据库初始化完成！');
     return true;
   } catch (err) {
-    console.error('❌ 数据库初始化失败:', err.message);
+    console.error('数据库初始化失败:', err.message);
     return false;
   }
 }
