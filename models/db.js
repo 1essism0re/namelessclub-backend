@@ -3,23 +3,27 @@
  * 支持 Render PostgreSQL
  */
 const { Pool } = require('pg');
-const config = require('../config');
+
+// 直接使用 DATABASE_URL（Render 自动设置）
+const connectionString = process.env.DATABASE_URL;
+
+if (!connectionString) {
+  console.error('❌ 错误: 没有找到 DATABASE_URL 环境变量');
+  console.error('请在 Render 的 Environment 中检查数据库是否已关联');
+  process.exit(1);
+}
+
+console.log('📡 数据库连接字符串:', connectionString.replace(/:.*@/, ':****@'));
 
 // 创建连接池
 const pool = new Pool({
-  host: config.db.host,
-  port: config.db.port || 5432,
-  user: config.db.user,
-  password: config.db.password,
-  database: config.db.database,
-  max: 10,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000,
+  connectionString: connectionString,
+  ssl: false, // Render 内部连接不需要 SSL
 });
 
 // 测试连接
 pool.query('SELECT NOW()')
-  .then(() => console.log(`✅ 数据库连接成功: ${config.db.host}:${config.db.port}/${config.db.database}`))
+  .then(() => console.log('✅ 数据库连接成功'))
   .catch(err => console.error('❌ 数据库连接失败:', err.message));
 
 /**
@@ -65,13 +69,13 @@ const db = {
    */
   async findOne(tableOrSql, paramsOrWhere = []) {
     if (typeof tableOrSql === 'string' && tableOrSql.toUpperCase().includes('SELECT')) {
-      const [rows] = await pool.query(tableOrSql, paramsOrWhere);
-      return rows[0] || null;
+      const result = await pool.query(tableOrSql, paramsOrWhere);
+      return result.rows[0] || null;
     }
     const { clause, params } = buildWhere(paramsOrWhere);
     const sql = `SELECT * FROM ${tableOrSql} ${clause} LIMIT 1`;
-    const [rows] = await pool.query(sql, params);
-    return rows[0] || null;
+    const result = await pool.query(sql, params);
+    return result.rows[0] || null;
   },
 
   /**
@@ -79,14 +83,14 @@ const db = {
    */
   async findAll(tableOrSql, paramsOrWhere = [], orderBy = '') {
     if (typeof tableOrSql === 'string' && (tableOrSql.toUpperCase().includes('SELECT') || tableOrSql.includes('JOIN'))) {
-      const [rows] = await pool.query(tableOrSql, paramsOrWhere);
-      return rows;
+      const result = await pool.query(tableOrSql, paramsOrWhere);
+      return result.rows;
     }
     const { clause, params } = buildWhere(paramsOrWhere);
     const orderClause = orderBy ? `ORDER BY ${orderBy}` : '';
     const sql = `SELECT * FROM ${tableOrSql} ${clause} ${orderClause}`;
-    const [rows] = await pool.query(sql, params);
-    return rows;
+    const result = await pool.query(sql, params);
+    return result.rows;
   },
 
   /**
@@ -94,13 +98,13 @@ const db = {
    */
   async count(tableOrSql, paramsOrWhere = []) {
     if (typeof tableOrSql === 'string' && tableOrSql.toUpperCase().includes('SELECT')) {
-      const [rows] = await pool.query(tableOrSql, paramsOrWhere);
-      return rows[0]?.count || 0;
+      const result = await pool.query(tableOrSql, paramsOrWhere);
+      return parseInt(result.rows[0]?.count) || 0;
     }
     const { clause, params } = buildWhere(paramsOrWhere);
     const sql = `SELECT COUNT(*) as count FROM ${tableOrSql} ${clause}`;
-    const [rows] = await pool.query(sql, params);
-    return parseInt(rows[0]?.count) || 0;
+    const result = await pool.query(sql, params);
+    return parseInt(result.rows[0]?.count) || 0;
   },
 
   /**
@@ -111,8 +115,8 @@ const db = {
     const values = Object.values(data);
     const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
     const sql = `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders}) RETURNING *`;
-    const [result] = await pool.query(sql, values);
-    return { id: result[0]?.id, affectedRows: result.rowCount };
+    const result = await pool.query(sql, values);
+    return { id: result.rows[0]?.id, affectedRows: result.rowCount };
   },
 
   /**
@@ -125,7 +129,7 @@ const db = {
       const setClause = setKeys.map((k, i) => `${k} = $${i + 1}`).join(', ');
       const values = [...setValues, ...whereParams];
       const sql = `UPDATE ${table} SET ${setClause} WHERE ${whereOrClause}`;
-      const [result] = await pool.query(sql, values);
+      const result = await pool.query(sql, values);
       return { affectedRows: result.rowCount };
     }
     const { clause, params: whereParamsArr } = buildWhere(whereOrClause);
@@ -134,7 +138,7 @@ const db = {
     const setClause = setKeys.map((k, i) => `${k} = $${i + 1}`).join(', ');
     const values = [...setValues, ...whereParamsArr];
     const sql = `UPDATE ${table} SET ${setClause} ${clause}`;
-    const [result] = await pool.query(sql, values);
+    const result = await pool.query(sql, values);
     return { affectedRows: result.rowCount };
   },
 
@@ -144,12 +148,12 @@ const db = {
   async delete(table, whereOrClause, params = []) {
     if (typeof whereOrClause === 'string') {
       const sql = `DELETE FROM ${table} WHERE ${whereOrClause}`;
-      const [result] = await pool.query(sql, params);
+      const result = await pool.query(sql, params);
       return { affectedRows: result.rowCount };
     }
     const { clause, params: whereParams } = buildWhere(whereOrClause);
     const sql = `DELETE FROM ${table} ${clause}`;
-    const [result] = await pool.query(sql, whereParams);
+    const result = await pool.query(sql, whereParams);
     return { affectedRows: result.rowCount };
   },
 
@@ -157,8 +161,8 @@ const db = {
    * 执行原始SQL
    */
   async query(sql, params = []) {
-    const [result] = await pool.query(sql, params);
-    return result;
+    const result = await pool.query(sql, params);
+    return result.rows;
   },
 
   getPool() {
