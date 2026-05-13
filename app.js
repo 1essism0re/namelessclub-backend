@@ -36,13 +36,15 @@ const server = http.createServer(app);
 
 // ==================== 第三步：配置中间件 ====================
 
-// CORS 跨域配置 —— 允许前端（开发环境5173端口）访问后端API
+// CORS 跨域配置 —— 允许前端访问后端API
 app.use(cors({
   origin: [
     'http://localhost:5173',   // Vite 开发服务器
     'http://localhost:5174',   // Vite 备用端口
     'http://127.0.0.1:5173',
-    'http://127.0.0.1:5174'
+    'http://127.0.0.1:5174',
+    'https://namelessclub.vercel.app',  // Vercel 生产环境
+    'https://namelessclub-*.vercel.app' // Vercel 预览环境
   ],
   credentials: true  // 允许发送 Cookie
 }));
@@ -137,6 +139,8 @@ const io = new Server(server, {
       'http://127.0.0.1:5173',
       'http://127.0.0.1:5174',
       'http://127.0.0.1:5175',
+      'https://namelessclub.vercel.app',
+      'https://namelessclub-*.vercel.app'
     ],
     methods: ['GET', 'POST']
   }
