@@ -56,6 +56,9 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // 静态文件服务 —— 提供 uploads 目录下的图片等文件访问
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+// 托管前端静态文件（Vite构建产物）
+app.use(express.static(path.join(__dirname, 'public')));
+
 // 请求日志中间件（开发环境）
 if (process.env.NODE_ENV !== 'production') {
   app.use((req, res, next) => {
@@ -94,9 +97,13 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// 404 处理 —— 所有未匹配的路由返回404
-app.use((req, res) => {
-  res.status(404).json({ code: 404, message: '接口不存在' });
+// SPA 回退：所有非API请求返回 index.html（前端路由处理）
+app.get('*', (req, res) => {
+  if (!req.path.startsWith('/api/')) {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  } else {
+    res.status(404).json({ code: 404, message: '接口不存在' });
+  }
 });
 
 // 全局错误处理中间件
