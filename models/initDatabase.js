@@ -145,6 +145,29 @@ CREATE TABLE IF NOT EXISTS transactions (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS site_contents (
+  id SERIAL PRIMARY KEY,
+  section VARCHAR(50) NOT NULL,
+  key VARCHAR(100) NOT NULL,
+  value TEXT,
+  type VARCHAR(20) DEFAULT 'text',
+  sort_order INT DEFAULT 0,
+  is_active INT DEFAULT 1,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(section, key)
+);
+
+CREATE TABLE IF NOT EXISTS site_settings (
+  id SERIAL PRIMARY KEY,
+  category VARCHAR(50) NOT NULL,
+  key VARCHAR(100) NOT NULL,
+  value TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(category, key)
+);
+
 CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone);
 CREATE INDEX IF NOT EXISTS idx_players_user_id ON players(user_id);
 CREATE INDEX IF NOT EXISTS idx_players_status ON players(status);
@@ -155,6 +178,8 @@ CREATE INDEX IF NOT EXISTS idx_messages_from_user ON messages(from_user_id);
 CREATE INDEX IF NOT EXISTS idx_messages_to_user ON messages(to_user_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON transactions(user_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_trade_no ON transactions(trade_no);
+CREATE INDEX IF NOT EXISTS idx_site_contents_section ON site_contents(section);
+CREATE INDEX IF NOT EXISTS idx_site_settings_category ON site_settings(category);
 `;
 
 async function initDatabase() {
@@ -246,7 +271,79 @@ async function initDatabase() {
       );
       console.log('公告已插入');
     } catch (err) {}
-    
+
+    // 插入网站内容初始数据
+    const siteContents = [
+      ['hero', 'announcement', '全新版本已上线'],
+      ['hero', 'title', 'KK电竞'],
+      ['hero', 'subtitle', '你的游戏开黑平台'],
+      ['hero', 'description', '高品质语音开黑 · 千万大神在线陪玩 · 频道式语音房\n一键组队，畅享游戏乐趣'],
+      ['stats', 'users', '1000万+'],
+      ['stats', 'players', '50万+'],
+      ['stats', 'stability', '99.9%'],
+      ['stats', 'games', '200+'],
+      ['stats', 'rating', '4.9'],
+      ['voice', 'title', '频道式语音房'],
+      ['voice', 'subtitle', '组队开黑更便捷'],
+      ['voice', 'description', '参考KOOK频道设计，KK电竞打造全新的频道式语音房体验。每个频道都是独立的语音空间，支持自由创建和加入，让组队开黑变得前所未有的简单。'],
+      ['voice', 'feature_1', '全球高速节点，语音延迟低至20ms'],
+      ['voice', 'feature_2', '支持多人同时语音，互不干扰'],
+      ['voice', 'feature_3', '频道分类管理，游戏/娱乐/社交分区'],
+      ['voice', 'feature_4', '订单完成后自动创建专属语音房'],
+      ['team', 'title', '千万大神在线'],
+      ['team', 'subtitle', '一键下单即刻上分'],
+      ['team', 'description', '严格认证的游戏大神，覆盖王者荣耀、英雄联盟、和平精英、原神等热门游戏。从青铜到王者，从新手到高手，找到最适合你的游戏伙伴。'],
+      ['team', 'feature_1', '实名认证 + 技能认证双重保障'],
+      ['team', 'feature_2', '透明定价，按局/按时计费'],
+      ['team', 'feature_3', '下单后一键进入语音房履约'],
+      ['team', 'feature_4', '真实评价体系，口碑看得见'],
+      ['cta', 'title', '准备好开启你的游戏之旅了吗？'],
+      ['cta', 'description', '下载KK电竞，加入千万玩家的游戏社区，找到你的最佳队友'],
+      ['cta', 'button_text', '立即开始'],
+      ['download', 'windows_version', 'v2.0.0'],
+      ['download', 'macos_version', 'v2.0.0'],
+      ['download', 'android_version', 'v2.0.0'],
+      ['download', 'ios_version', 'v2.0.0'],
+      ['download', 'windows_url', '#'],
+      ['download', 'macos_url', '#'],
+      ['download', 'android_url', '#'],
+      ['download', 'ios_url', '#'],
+      ['footer', 'brand_description', 'KK电竞俱乐部 — 专业的游戏陪玩与语音开黑平台。为玩家提供高品质的游戏社交体验。'],
+      ['footer', 'copyright', '© 2024 KK电竞俱乐部 KK ESPORTS CLUB. All rights reserved.']
+    ];
+    for (const [section, key, value] of siteContents) {
+      try {
+        await db.query(
+          `INSERT INTO site_contents (section, key, value) VALUES ($1, $2, $3) ON CONFLICT (section, key) DO NOTHING`,
+          [section, key, value]
+        );
+      } catch (err) {}
+    }
+    console.log('网站内容数据已插入');
+
+    // 插入系统设置初始数据
+    const siteSettings = [
+      ['basic', 'platform_name', 'KK电竞'],
+      ['basic', 'contact_email', 'support@kkesports.com'],
+      ['basic', 'service_phone', '400-888-8888'],
+      ['features', 'voice_room', 'true'],
+      ['features', 'im', 'true'],
+      ['features', 'review', 'true'],
+      ['features', 'coupon', 'false'],
+      ['notification', 'order_notify', 'true'],
+      ['notification', 'message_notify', 'true'],
+      ['notification', 'promo_notify', 'false']
+    ];
+    for (const [category, key, value] of siteSettings) {
+      try {
+        await db.query(
+          `INSERT INTO site_settings (category, key, value) VALUES ($1, $2, $3) ON CONFLICT (category, key) DO NOTHING`,
+          [category, key, value]
+        );
+      } catch (err) {}
+    }
+    console.log('系统设置数据已插入');
+
     console.log('数据库初始化完成！');
     return true;
   } catch (err) {

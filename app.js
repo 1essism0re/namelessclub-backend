@@ -26,6 +26,7 @@ const userRoutes = require('./routes/userRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
 const messageRoutes = require('./routes/messageRoutes');
 const voiceRoomRoutes = require('./routes/voiceRoomRoutes');
+const siteRoutes = require('./routes/siteRoutes');
 
 // 导入配置
 const config = require('./config');
@@ -86,6 +87,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/payment', paymentRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/voice-rooms', voiceRoomRoutes);
+app.use('/api/site', siteRoutes);
 
 // 健康检查接口 —— 用于确认服务器是否正常运行
 app.get('/api/health', (req, res) => {
