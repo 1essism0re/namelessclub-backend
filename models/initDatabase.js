@@ -306,6 +306,7 @@ async function initDatabase() {
       ['download', 'ios_version', 'v2.0.0'],
       ['download', 'windows_url', '#'],
       ['download', 'macos_url', '#'],
+      ['download', 'apk_url', '#'],
       ['download', 'android_url', '#'],
       ['download', 'ios_url', '#'],
       ['footer', 'brand_description', 'KK电竞俱乐部 — 专业的游戏陪玩与语音开黑平台。为玩家提供高品质的游戏社交体验。'],
