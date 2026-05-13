@@ -89,8 +89,8 @@ async function login(req, res) {
       return res.status(403).json({ code: 403, message: '账号已被禁用' });
     }
 
-    // 更新最后登录时间
-    await db.update('users', { last_login_at: new Date().toISOString() }, 'id = ?', [user.id]);
+    // 更新最后登录时间 - 使用PostgreSQL的NOW()函数
+    await db.query('UPDATE users SET last_login_at = NOW() WHERE id = $1', [user.id]);
 
     // 生成Token
     const token = generateToken({
